@@ -223,7 +223,8 @@ class LogStash::Filters::Multiline < LogStash::Filters::Base
     events = []
     flushed = @pending.collect do |key, value|
       t = value["@timestamp"]
-      age = Time.now - (t.is_a?(Array) ? t.first : t)
+      t_coerced = LogStash::Timestamp.coerce(t.is_a?(Array) ? t.first : t)
+      age = Time.now.to_i - t_coerced.to_i
       if age >= @max_age
         value.uncancel
         events << collapse_event!(value)
