@@ -98,8 +98,9 @@ class LogStash::Filters::Multiline < LogStash::Filters::Base
   #     NUMBER \d+
   config :patterns_dir, :validate => :array, :default => []
 
-  # for debugging & testing purposes, do not use in production. allows periodic flushing of pending events
-  config :enable_flush, :validate => :boolean, :default => false
+  # The maximum age an event can be (in seconds) before it is automatically
+  # flushed.
+  config :max_age, :validate => :number, :default => 5
 
   # Detect if we are running from a jarfile, pick the right path.
   @@patterns_path = Set.new
@@ -219,22 +220,36 @@ class LogStash::Filters::Multiline < LogStash::Filters::Base
   # Note: flush is disabled now; it is preferable to use the multiline codec.
   public
   def flush
-    return [] unless @enable_flush
-
     events = []
-    @pending.each do |key, value|
-      value.uncancel
-      events << collapse_event!(value)
+    flushed = @pending.collect do |key, value|
+      t = value["@timestamp"]
+      t_coerced = LogStash::Timestamp.coerce(t.is_a?(Array) ? t.first : t)
+      age = Time.now.to_i - t_coerced.to_i
+      if age >= @max_age
+        value.uncancel
+        events << collapse_event!(value)
+        next key
+      end
     end
-    @pending.clear
+    flushed.each do |key|
+      @pending.delete(key)
+    end
     return events
   end # def flush
+
+  public
+  def teardown
+    return @pending.collect do |k,v|
+      v.uncancel
+      next collapse_event!(v)
+    end
+  end
 
   private
 
   def collapse_event!(event)
     event["message"] = event["message"].join("\n") if event["message"].is_a?(Array)
-    event["@timestamp"] = event["@timestamp"].first if event["@timestamp"].is_a?(Array)
+    event.timestamp = event.timestamp.first if event.timestamp.is_a?(Array)
     event
   end
 end # class LogStash::Filters::Multiline

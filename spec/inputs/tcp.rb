@@ -2,6 +2,7 @@
 require "test_utils"
 require "socket"
 require "timeout"
+require "logstash/json"
 
 describe "inputs/tcp" do
   extend LogStash::RSpec
@@ -96,7 +97,7 @@ describe "inputs/tcp" do
       }
 
       socket = Stud.try(5.times) { TCPSocket.new("127.0.0.1", port) }
-      socket.puts(data.to_json)
+      socket.puts(LogStash::Json.dump(data))
       socket.close
 
       # wait till all events have been processed
@@ -133,7 +134,7 @@ describe "inputs/tcp" do
       }
 
       socket = Stud.try(5.times) { TCPSocket.new("127.0.0.1", port) }
-      socket.puts(data.to_json)
+      socket.puts(LogStash::Json.dump(data))
       socket.close
 
       # wait till all events have been processed
@@ -170,7 +171,7 @@ describe "inputs/tcp" do
       socket = Stud.try(5.times) { TCPSocket.new("127.0.0.1", port) }
       (1..5).each do |idx|
         data["idx"] = idx
-        socket.puts(data.to_json+"\n")
+        socket.puts(LogStash::Json.dump(data) + "\n")
       end # do
       socket.close
 
